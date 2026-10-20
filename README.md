@@ -2,8 +2,8 @@
 
 **Name:** GEETIKA SINGH
 **Roll number:** M26CPS003
-**Repository:** https://github.com/YOUR_USER/YOUR_REPO
-**Final commit hash:** PASTE_FULL_COMMIT_HASH
+**Repository:** https://github.com/geetika-singh04/ML-assignment
+**Final commit hash:** 8f99a2a5980d9ece15ad9477cd017be07a42fc6f
 
 Machine Learning Assignment 2. Decision tree baseline, bagging and SAMME boosting (both implemented from scratch),
 and measured bias/variance, on `fetch_olivetti_faces` (40 identities, 10 images each, 64x64, raw flattened pixels,
