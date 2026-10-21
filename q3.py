@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_olivetti_faces
 from sklearn.tree import DecisionTreeClassifier
 
-# ---------------- setup (split + frozen choices from Q1/Q2) ----------------
+
 K = 40
 acc = lambda p, t: np.mean(p == t)
 X, y = fetch_olivetti_faces(return_X_y=True)
@@ -13,7 +13,6 @@ s = np.load("split.npz"); tr, te = s["train"], s["test"]
 Xtr, ytr, Xte, yte = X[tr], y[tr], X[te], y[te]
 Xm = Xte.copy().reshape(-1, 64, 64); Xm[:, 24:40, 24:40] = 0; Xm = Xm.reshape(-1, 4096)
 
-# ---- SAMME (identical to q2.py) ----
 def samme_round(w, pred, y, K):
     err = w[pred != y].sum() / w.sum()
     if err >= 1 - 1 / K:
@@ -41,7 +40,6 @@ def boost_q(m, Xs):
         S[np.arange(len(Xs)), h.predict(Xs)] += a
     return S / A.sum()
 
-# ---- bagging (identical to q1/q2) ----
 def fit_bag(X, y, B, depth, leaf, seed=0):
     r = np.random.default_rng(seed); out = []
     for b in range(B):
@@ -58,22 +56,21 @@ def bag_votes(trees, Xs):
 c1, c2 = json.load(open("q1_config.json")), json.load(open("q2_config.json"))
 D, LEAF, BF, SEED, DS, RS = c1["D"], c1["LEAF"], c1["BF"], c1["SEED"], c2["DS"], c2["RS"]
 R = 30
-E = np.eye(K)[yte]                                   # one-hot targets
+E = np.eye(K)[yte]                                   
 
-# 30 resampled training sets: within each identity, 6 draws with replacement from its 6 train faces
 rng = np.random.default_rng(SEED)
 resamples = np.array([np.concatenate([rng.choice(np.where(ytr == c)[0], 6, replace=True) for c in range(K)])
                       for _ in range(R)])
 np.save("resamples.npy", resamples)
 
-def bias_var(Pr):                                    # Pr: (R, N, K)
+def bias_var(Pr):                                    
     pbar = Pr.mean(0)
     return ((pbar - E) ** 2).sum(1).mean(), ((Pr - pbar) ** 2).sum(2).mean()
 
 def tree_fit(Xr, yr, depth):
     return DecisionTreeClassifier(max_depth=depth, min_samples_leaf=LEAF, random_state=0).fit(Xr, yr)
 
-# ================= (a) selected tree, bagging, boosting =================
+#(a)
 out = {n: {"clean": [], "masked": []} for n in ["tree", "bagging", "boosting"]}
 for r in range(R):
     Xr, yr = Xtr[resamples[r]], ytr[resamples[r]]
@@ -95,9 +92,9 @@ for n, d in out.items():
     table[n] = (np.mean(ac), np.mean(am), b2, v)
     print(f"{n:9s} {np.mean(ac):.3f}+-{np.std(ac):.3f}  {np.mean(am):.3f}  {b2:.4f}  {v:.4f}  {vm:.4f}")
 
-# ================= (b) depth study: single tree vs 100-tree bagging =================
-depths = list(dict.fromkeys([2, D, None]))            # shallow, selected, deepest
-if len(depths) < 3:                                   # e.g. D=None: no deeper option exists
+#  (b)
+depths = list(dict.fromkeys([2, D, None]))           
+if len(depths) < 3:                                   
     depths = [2, 8, None]
 rows = []
 print("\n(b) depth | tree: acc bias2 var leaf_occ frac1 | bag100: acc bias2 var disagree | var removed, acc gain")
@@ -110,7 +107,7 @@ for d in depths:
         Pt.append(t.predict_proba(Xte))
         v, P = bag_votes(fit_bag(Xr, yr, 100, d, LEAF, seed=r), Xte)
         Pb.append(v)
-        cnt = v * 100; dis.append((1 - (cnt * (cnt - 1)).sum(1) / (100 * 99)).mean())   # pairwise disagreement
+        cnt = v * 100; dis.append((1 - (cnt * (cnt - 1)).sum(1) / (100 * 99)).mean())   
     Pt, Pb = np.array(Pt), np.array(Pb)
     at = np.mean([acc(p.argmax(1), yte) for p in Pt]); ab = np.mean([acc(p.argmax(1), yte) for p in Pb])
     (bt, vt), (bb, vb) = bias_var(Pt), bias_var(Pb)
@@ -124,7 +121,7 @@ for j, (nm, st) in enumerate([("tree bias$^2$", "o-"), ("tree var", "o--"), ("ba
     plt.plot(lab, [r[j + 1] for r in rows], st, label=nm)
 plt.xlabel("max depth"); plt.legend(fontsize=7); plt.tight_layout(); plt.savefig("q3_depth.png", dpi=200)
 
-# ================= (d) final table =================
+#  (d) 
 print("\n(d) model | clean acc | masked acc | bias2 | variance")
 for n, (ac, am, b2, v) in table.items():
     print(f"{n:9s} {ac:.3f}  {am:.3f}  {b2:.4f}  {v:.4f}")

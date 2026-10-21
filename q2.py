@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_olivetti_faces
 from sklearn.tree import DecisionTreeClassifier
 
-# ---------------- setup (uses split + frozen choices from Q1) ----------------
 X, y = fetch_olivetti_faces(return_X_y=True)
 s = np.load("split.npz"); tr, va, te = s["train"], s["val"], s["test"]
 Xtr, ytr, Xva, yva, Xte, yte = X[tr], y[tr], X[va], y[va], X[te], y[te]
@@ -14,13 +13,13 @@ cfg = json.load(open("q1_config.json")); D, LEAF, BF = cfg["D"], cfg["LEAF"], cf
 K = 40
 acc = lambda p, t: np.mean(p == t)
 
-# ---------------- SAMME ----------------
+# SAMME 
 def samme_round(w, pred, y, K):
     """One SAMME weight update. Returns (error, alpha, new_w); alpha=None if learner is no better than random."""
     err = w[pred != y].sum() / w.sum()
-    if err >= 1 - 1 / K:                      # not better than random multiclass guessing -> reject
+    if err >= 1 - 1 / K:                     
         return err, None, w
-    e = max(err, 1e-10)                       # avoid log(0) for a perfect learner
+    e = max(err, 1e-10)                       
     a = np.log((1 - e) / e) + np.log(K - 1)
     w = w * np.exp(a * (pred != y))
     return err, a, w / w.sum()
@@ -32,11 +31,11 @@ def fit_boost(X, y, depth, R):
         h = DecisionTreeClassifier(max_depth=depth, random_state=t).fit(X, y, sample_weight=w)
         p = h.predict(X)
         err, a, w_new = samme_round(w, p, y, K)
-        if a is None:                          # stop: weak learner failed the better-than-random test
+        if a is None:                         
             break
         m["H"].append(h); m["A"].append(a); m["err"].append(err); m["W"].append(w); m["P"].append(p)
         w = w_new
-        if err == 0:                           # perfect learner: weights stop changing, so stop
+        if err == 0:                        
             break
     m["A"] = np.array(m["A"]); m["W"] = np.array(m["W"]); m["P"] = np.array(m["P"])
     return m
@@ -48,7 +47,6 @@ def boost_q(m, Xs, T):
         S[np.arange(len(Xs)), h.predict(Xs)] += a
     return S / m["A"][:T].sum()
 
-# ---------------- bagging helpers (same as Q1) ----------------
 def fit_bag(X, y, B, seed=0):
     r = np.random.default_rng(seed); out = []
     for b in range(B):
@@ -57,13 +55,13 @@ def fit_bag(X, y, B, seed=0):
     return out
 
 def bag_votes(trees, Xs):
-    P = np.array([t.predict(Xs) for t in trees])           # (B, n)
+    P = np.array([t.predict(Xs) for t in trees])           
     cnt = np.zeros((P.shape[1], K))
     for row in P:
         cnt[np.arange(P.shape[1]), row] += 1
     return cnt / len(trees), P
 
-# ================= (a) toy 3-class example =================
+#  (a) 
 np.set_printoptions(precision=4, suppress=True)
 Xt = np.arange(1, 10, dtype=float).reshape(-1, 1)
 yt = np.array([0, 0, 0, 1, 1, 0, 2, 2, 2])
@@ -78,7 +76,7 @@ print("weak preds    :", pt)
 print(f"weighted error: {err:.4f}   alpha: {a:.4f}")
 print("updated w     :", w1, " sum =", w1.sum())
 
-# ================= (b) depth / rounds selection =================
+#  (b) 
 Rs = [10, 25, 50, 100]
 models = {d: fit_boost(Xtr, ytr, d, 100) for d in [1, 2, 3, 4]}
 best = None
@@ -89,7 +87,7 @@ for d, m in models.items():
         tra = acc(boost_q(m, Xtr, T).argmax(1), ytr)
         v = acc(boost_q(m, Xva, T).argmax(1), yva)
         print(f"{d} {R}({T}) {tra:.3f} {v:.3f}")
-        if best is None or v > best[0]:         # ties -> smaller depth, fewer rounds
+        if best is None or v > best[0]:         
             best = (v, d, R, T)
 _, DS, RS, TS = best
 print(f"\nSELECTED: depth={DS}, rounds={RS} (actual {TS})")
@@ -103,7 +101,7 @@ for a_, v_, t_ in zip(ax, [M["err"][:TS], M["A"][:TS], W.max(1), np.sort(W, 1)[:
     a_.plot(v_); a_.set_xlabel("round"); a_.set_title(t_, fontsize=9)
 plt.tight_layout(); plt.savefig("q2_boost_curves.png", dpi=200)
 
-# ================= (c) boosting vs bagging =================
+#  (c) 
 print("\nmethod  n  train val test time(s)")
 for T in [25, 50, 100]:
     t0 = time.time(); mb = fit_boost(Xtr, ytr, DS, T); tb = time.time() - t0
@@ -114,7 +112,6 @@ for T in [25, 50, 100]:
     r = [acc(bag_votes(bt, Z)[0].argmax(1), t) for Z, t in [(Xtr, ytr), (Xva, yva), (Xte, yte)]]
     print(f"bag    {T:3d} " + " ".join(f"{v:.3f}" for v in r) + f" {tg:.2f}")
 
-# inspect the training face that gets the largest boosting weight
 Wall, P = M["W"][:TS], M["P"][:TS]
 i = np.argmax(Wall.max(0))
 print(f"\nTrain face {i} (class {ytr[i]}): max weight {Wall[:, i].max():.4f} (uniform = {1/len(ytr):.4f}), "
@@ -128,9 +125,9 @@ plt.scatter(wrong, Wall[wrong, i], c="r", marker="x", label="misclassified"); pl
 plt.xlabel("round"); plt.title(f"weight of train face {i}", fontsize=9); plt.tight_layout()
 plt.savefig("q2_heavy_sample.png", dpi=200)
 
-# ================= (d) robustness: tree vs bagging vs boosting =================
+#  (d)
 tree = DecisionTreeClassifier(max_depth=D, min_samples_leaf=LEAF, random_state=0).fit(Xtr, ytr)
-bag = pickle.load(open("bag.pkl", "rb"))                       # final bagged model from Q1
+bag = pickle.load(open("bag.pkl", "rb"))                       #
 q = {}
 for name, Z in [("clean", Xte), ("masked", Xm)]:
     qt = tree.predict_proba(Z); qb = bag_votes(bag, Z)[0]; qs = boost_q(M, Z, TS)
@@ -138,15 +135,15 @@ for name, Z in [("clean", Xte), ("masked", Xm)]:
     for mname, qq in zip(["tree", "bagging", "boosting"], [qt, qb, qs]):
         print(f"[{name}] {mname:8s} acc={acc(qq.argmax(1), yte):.3f}  mean winning prob/vote={qq.max(1).mean():.3f}")
 
-# face where bagging and boosting react differently to the mask
+
 bc, bm = q["clean"][1].argmax(1), q["masked"][1].argmax(1)
 sc, sm = q["clean"][2].argmax(1), q["masked"][2].argmax(1)
 cand = np.where(((bc == yte) != (bm == yte)) != ((sc == yte) != (sm == yte)))[0]
 if len(cand):
     j = cand[0]
-    cnt = q["masked"][1][j] * BF                                # bagging vote counts on masked face
-    dis = 1 - (cnt * (cnt - 1)).sum() / (BF * (BF - 1))         # pairwise tree disagreement
-    cw = np.array([Wall.mean(0)[ytr == c].sum() for c in range(K)])  # avg boosting weight per class
+    cnt = q["masked"][1][j] * BF                               
+    dis = 1 - (cnt * (cnt - 1)).sum() / (BF * (BF - 1))         
+    cw = np.array([Wall.mean(0)[ytr == c].sum() for c in range(K)])  
     print(f"\nFace test idx {j}, true={yte[j]}")
     print(f"clean : bag={bc[j]} boost={sc[j]}   masked: bag={bm[j]} boost={sm[j]}")
     print(f"bag masked: winning vote={q['masked'][1][j].max():.3f}, tree disagreement={dis:.3f}")
